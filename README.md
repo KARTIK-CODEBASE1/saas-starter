@@ -1,16 +1,14 @@
-# Next.js SaaS Starter
+# Next.js SaaS Starter (Razorpay Edition)
 
-This is a starter template for building a SaaS application using **Next.js** with support for authentication, Stripe integration for payments, and a dashboard for logged-in users.
-
-**Demo: [https://next-saas-start.vercel.app/](https://next-saas-start.vercel.app/)**
+This is a starter template for building a SaaS application using **Next.js** with support for authentication, Razorpay integration for payments, and a dashboard for logged-in users.
 
 ## Features
 
 - Marketing landing page (`/`) with animated Terminal element
-- Pricing page (`/pricing`) which connects to Stripe Checkout
+- Pricing page (`/pricing`) which connects to Razorpay Checkout
 - Dashboard pages with CRUD operations on users/teams
 - Basic RBAC with Owner and Member roles
-- Subscription management with Stripe Customer Portal
+- Subscription management via Razorpay Subscriptions API
 - Email/password authentication with JWTs stored to cookies
 - Global middleware to protect logged-in routes
 - Local middleware to protect Server Actions or validate Zod schemas
@@ -19,78 +17,64 @@ This is a starter template for building a SaaS application using **Next.js** wit
 ## Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org/)
-- **Database**: [Postgres](https://www.postgresql.org/)
+- **Database**: [Postgres](https://www.postgresql.org/) (hosted on [Neon](https://neon.tech/))
 - **ORM**: [Drizzle](https://orm.drizzle.team/)
-- **Payments**: [Stripe](https://stripe.com/)
+- **Payments**: [Razorpay](https://razorpay.com/)
 - **UI Library**: [shadcn/ui](https://ui.shadcn.com/)
 
 ## Getting Started
 
 ```bash
-git clone https://github.com/nextjs/saas-starter
+git clone https://github.com/YOUR_USERNAME/saas-starter
 cd saas-starter
-pnpm install
+npm install
 ```
 
 ## Running Locally
 
-[Install](https://docs.stripe.com/stripe-cli) and log in to your Stripe account:
+Create your `.env` file with the following variables:
+POSTGRES_URL=your_neon_connection_string
+RAZORPAY_KEY_ID=your_razorpay_test_key_id
+RAZORPAY_KEY_SECRET=your_razorpay_test_key_secret
+RAZORPAY_PLAN_ID=your_razorpay_plan_id
+BASE_URL=http://localhost:3000
+AUTH_SECRET=your_generated_secret
+
+Generate `AUTH_SECRET` with:
 
 ```bash
-stripe login
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Use the included setup script to create your `.env` file:
+Push the database schema to your Neon database:
 
 ```bash
-pnpm db:setup
+npx drizzle-kit push
 ```
 
-Run the database migrations and seed the database with a default user and team:
+Run the Next.js development server:
 
 ```bash
-pnpm db:migrate
-pnpm db:seed
-```
-
-This will create the following user and team:
-
-- User: `test@test.com`
-- Password: `admin123`
-
-You can also create new users through the `/sign-up` route.
-
-Finally, run the Next.js development server:
-
-```bash
-pnpm dev
+npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser to see the app in action.
 
-You can listen for Stripe webhooks locally through their CLI to handle subscription change events:
-
-```bash
-stripe listen --forward-to localhost:3000/api/stripe/webhook
-```
+You can create new users through the `/sign-up` route.
 
 ## Testing Payments
 
-To test Stripe payments, use the following test card details:
-
-- Card Number: `4242 4242 4242 4242`
-- Expiration: Any future date
-- CVC: Any 3-digit number
+Razorpay test mode lets you simulate payments without real transactions. Use Razorpay's [test card/UPI details](https://razorpay.com/docs/payments/payments/test-card-upi-details/) to test the checkout flow in Test Mode from your Razorpay Dashboard.
 
 ## Going to Production
 
 When you're ready to deploy your SaaS application to production, follow these steps:
 
-### Set up a production Stripe webhook
+### Set up a production Razorpay webhook
 
-1. Go to the Stripe Dashboard and create a new webhook for your production environment.
-2. Set the endpoint URL to your production API route (e.g., `https://yourdomain.com/api/stripe/webhook`).
-3. Select the events you want to listen for (e.g., `checkout.session.completed`, `customer.subscription.updated`).
+1. Go to the Razorpay Dashboard → Settings → Webhooks and create a new webhook for your production environment.
+2. Set the endpoint URL to your production API route (e.g., `https://yourdomain.com/api/razorpay/webhook`).
+3. Select the events you want to listen for (e.g., `subscription.activated`, `subscription.charged`, `subscription.cancelled`).
 
 ### Deploy to Vercel
 
@@ -103,17 +87,12 @@ When you're ready to deploy your SaaS application to production, follow these st
 In your Vercel project settings (or during deployment), add all the necessary environment variables. Make sure to update the values for the production environment, including:
 
 1. `BASE_URL`: Set this to your production domain.
-2. `STRIPE_SECRET_KEY`: Use your Stripe secret key for the production environment.
-3. `STRIPE_WEBHOOK_SECRET`: Use the webhook secret from the production webhook you created in step 1.
-4. `POSTGRES_URL`: Set this to your production database URL.
-5. `AUTH_SECRET`: Set this to a random string. `openssl rand -base64 32` will generate one.
+2. `RAZORPAY_KEY_ID`: Use your Razorpay live key ID for production.
+3. `RAZORPAY_KEY_SECRET`: Use your Razorpay live key secret for production.
+4. `RAZORPAY_PLAN_ID`: Your live Razorpay plan ID.
+5. `POSTGRES_URL`: Set this to your production database URL.
+6. `AUTH_SECRET`: Set this to a random string. `openssl rand -base64 32` will generate one.
 
-## Other Templates
+## Credits
 
-While this template is intentionally minimal and to be used as a learning resource, there are other paid versions in the community which are more full-featured:
-
-- https://achromatic.dev
-- https://shipfa.st
-- https://makerkit.dev
-- https://zerotoshipped.com
-- https://turbostarter.dev
+Originally based on the official [Next.js SaaS Starter](https://github.com/nextjs/saas-starter) by Vercel, adapted to use Razorpay instead of Stripe for India-based payment support.
