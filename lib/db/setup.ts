@@ -22,59 +22,28 @@ function question(query: string): Promise<string> {
   );
 }
 
-async function checkStripeCLI() {
-  console.log(
-    'Step 1: Checking if Stripe CLI is installed and authenticated...'
-  );
-  try {
-    await execAsync('stripe --version');
-    console.log('Stripe CLI is installed.');
+async function checkRazorpayKeys() {
+  console.log('Step 1: Verifying Razorpay credentials (from env or prompt)');
+  // We won't try to contact Razorpay here; just ensure env values are provided or ask the user.
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
-    // Check if Stripe CLI is authenticated
-    try {
-      await execAsync('stripe config --list');
-      console.log('Stripe CLI is authenticated.');
-    } catch (error) {
-      console.log(
-        'Stripe CLI is not authenticated or the authentication has expired.'
-      );
-      console.log('Please run: stripe login');
-      const answer = await question(
-        'Have you completed the authentication? (y/n): '
-      );
-      if (answer.toLowerCase() !== 'y') {
-        console.log(
-          'Please authenticate with Stripe CLI and run this script again.'
-        );
-        process.exit(1);
-      }
+  if (keyId && keySecret) {
+    console.log('Razorpay credentials detected in environment.');
+    return;
+  }
 
-      // Verify authentication after user confirms login
-      try {
-        await execAsync('stripe config --list');
-        console.log('Stripe CLI authentication confirmed.');
-      } catch (error) {
-        console.error(
-          'Failed to verify Stripe CLI authentication. Please try again.'
-        );
-        process.exit(1);
-      }
-    }
-  } catch (error) {
-    console.error(
-      'Stripe CLI is not installed. Please install it and try again.'
-    );
-    console.log('To install Stripe CLI, follow these steps:');
-    console.log('1. Visit: https://docs.stripe.com/stripe-cli');
-    console.log(
-      '2. Download and install the Stripe CLI for your operating system'
-    );
-    console.log('3. After installation, run: stripe login');
-    console.log(
-      'After installation and authentication, please run this setup script again.'
-    );
+  console.log('Razorpay API credentials not found in environment.');
+  const providedKeyId = await question('Enter your RAZORPAY_KEY_ID: ');
+  const providedKeySecret = await question('Enter your RAZORPAY_KEY_SECRET: ');
+
+  if (!providedKeyId || !providedKeySecret) {
+    console.error('Razorpay credentials are required to proceed.');
     process.exit(1);
   }
+
+  process.env.RAZORPAY_KEY_ID = providedKeyId;
+  process.env.RAZORPAY_KEY_SECRET = providedKeySecret;
 }
 
 async function getPostgresURL(): Promise<string> {
@@ -147,35 +116,10 @@ volumes:
   }
 }
 
-async function getStripeSecretKey(): Promise<string> {
-  console.log('Step 3: Getting Stripe Secret Key');
-  console.log(
-    'You can find your Stripe Secret Key at: https://dashboard.stripe.com/test/apikeys'
-  );
-  return await question('Enter your Stripe Secret Key: ');
-}
-
-async function createStripeWebhook(): Promise<string> {
-  console.log('Step 4: Creating Stripe webhook...');
-  try {
-    const { stdout } = await execAsync('stripe listen --print-secret');
-    const match = stdout.match(/whsec_[a-zA-Z0-9]+/);
-    if (!match) {
-      throw new Error('Failed to extract Stripe webhook secret');
-    }
-    console.log('Stripe webhook created.');
-    return match[0];
-  } catch (error) {
-    console.error(
-      'Failed to create Stripe webhook. Check your Stripe CLI installation and permissions.'
-    );
-    if (os.platform() === 'win32') {
-      console.log(
-        'Note: On Windows, you may need to run this script as an administrator.'
-      );
-    }
-    throw error;
-  }
+async function getRazorpayWebhookSecret(): Promise<string> {
+  console.log('Step 3: Razorpay webhook secret');
+  console.log('If you already have a webhook secret, enter it. Otherwise create one in the Razorpay dashboard.');
+  return await question('Enter your RAZORPAY_WEBHOOK_SECRET: ');
 }
 
 function generateAuthSecret(): string {
@@ -194,18 +138,21 @@ async function writeEnvFile(envVars: Record<string, string>) {
 }
 
 async function main() {
-  await checkStripeCLI();
+
+  await checkRazorpayKeys();
 
   const POSTGRES_URL = await getPostgresURL();
-  const STRIPE_SECRET_KEY = await getStripeSecretKey();
-  const STRIPE_WEBHOOK_SECRET = await createStripeWebhook();
+  const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || '';
+  const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || '';
+  const RAZORPAY_WEBHOOK_SECRET = await getRazorpayWebhookSecret();
   const BASE_URL = 'http://localhost:3000';
   const AUTH_SECRET = generateAuthSecret();
 
   await writeEnvFile({
     POSTGRES_URL,
-    STRIPE_SECRET_KEY,
-    STRIPE_WEBHOOK_SECRET,
+    RAZORPAY_KEY_ID,
+    RAZORPAY_KEY_SECRET,
+    RAZORPAY_WEBHOOK_SECRET,
     BASE_URL,
     AUTH_SECRET,
   });

@@ -1,33 +1,39 @@
-import Stripe from 'stripe';
-import { handleSubscriptionChange, stripe } from '@/lib/payments/stripe';
+import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { handleSubscriptionChange } from '@/lib/payments/razorpay';
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+const webhookSecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_WEBHOOK_SECRET;
 
 export async function POST(request: NextRequest) {
   const payload = await request.text();
-  const signature = request.headers.get('stripe-signature') as string;
+  const signature = request.headers.get('x-razorpay-signature') as string | null;
 
-  let event: Stripe.Event;
-
-  try {
-    event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-  } catch (err) {
-    console.error('Webhook signature verification failed.', err);
-    return NextResponse.json(
-      { error: 'Webhook signature verification failed.' },
-      { status: 400 }
-    );
+  if (!signature || !webhookSecret) {
+    console.error('Missing signature or webhook secret for Razorpay webhook.');
+    return NextResponse.json({ error: 'Missing signature or webhook secret.' }, { status: 400 });
   }
 
-  switch (event.type) {
-    case 'customer.subscription.updated':
-    case 'customer.subscription.deleted':
-      const subscription = event.data.object as Stripe.Subscription;
-      await handleSubscriptionChange(subscription);
-      break;
-    default:
-      console.log(`Unhandled event type ${event.type}`);
+  const expected = crypto.createHmac('sha256', webhookSecret).update(payload).digest('hex');
+
+  if (expected !== signature) {
+    console.error('Razorpay webhook signature mismatch.');
+    return NextResponse.json({ error: 'Invalid signature.' }, { status: 400 });
+  }
+
+  let body: any;
+  try {
+    body = JSON.parse(payload);
+  } catch (err) {
+    console.error('Failed to parse webhook payload', err);
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+  }
+
+  try {
+    // Delegate handling to the payments helper
+    await handleSubscriptionChange(body);
+  } catch (err) {
+    console.error('Error handling Razorpay webhook:', err);
+    return NextResponse.json({ error: 'Handler failed' }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });
